@@ -1,0 +1,6 @@
+{
+  "name": "SRIRAM FARMS – Planting & Seeding Manager",
+  "description": "Agricultural machinery management web application for SRIRAM FARMS to register farmers, track seeding & planting schedules, machinery billing, employee wages, offline persistence, and PDF reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

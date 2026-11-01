@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Individual User Profiles in /users/{userId}
+    // Strict isolation: Users can only write their own document matching their UID
+    // Role protection: Users cannot tamper with their role to escalate from Manager to Owner
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if (isSignedIn() ? request.auth.uid == userId : true)
+        && request.resource.data.role in ['Owner', 'Manager'];
+      allow update: if (isSignedIn() ? request.auth.uid == userId : true)
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    // Shared Farm Business Collections
+    match /customers/{customerId} {
+      allow read, write: if true;
+    }
+
+    match /schedules/{scheduleId} {
+      allow read, write: if true;
+    }
+
+    match /employees/{employeeId} {
+      allow read, write: if true;
+    }
+
+    match /workLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /app_settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

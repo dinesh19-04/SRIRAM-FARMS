@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Individual owner or manager user profile keyed by unique UID",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "mobile": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "role": { "type": "string", "enum": ["Owner", "Manager"] },
+        "age": { "type": "number" },
+        "education": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Farmer booking and land planting records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "village": { "type": "string" },
+        "mobile": { "type": "string" },
+        "acres": { "type": "number" },
+        "cents": { "type": "number" },
+        "machineryType": { "type": "string" },
+        "totalCharge": { "type": "number" },
+        "remainingBalance": { "type": "number" },
+        "seedUsedKg": { "type": "number" },
+        "seedBags": { "type": "number" },
+        "wholeBagsRequired": { "type": "number" }
+      },
+      "required": ["id", "name", "village", "mobile", "machineryType"]
+    },
+    "PlantingSchedule": {
+      "title": "PlantingSchedule",
+      "description": "Scheduled machine operations and status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "village": { "type": "string" },
+        "mobile": { "type": "string" },
+        "machineryType": { "type": "string" },
+        "scheduledDate": { "type": "string" },
+        "status": { "type": "string" },
+        "seedUsedKg": { "type": "number" },
+        "seedBags": { "type": "number" },
+        "wholeBagsRequired": { "type": "number" }
+      },
+      "required": ["id", "customerId", "customerName", "machineryType", "scheduledDate", "status"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Farm and nursery workers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "mobile": { "type": "string" },
+        "village": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Shared application settings and rates",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Individual user accounts and profiles keyed by UID"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "All customer bookings"
+    },
+    "/schedules/{scheduleId}": {
+      "schema": "PlantingSchedule",
+      "description": "All scheduled machine operations"
+    },
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "All employee records"
+    },
+    "/app_settings/{settingId}": {
+      "schema": "AppSettings",
+      "description": "System settings and shared machine rates"
+    }
+  }
+}
