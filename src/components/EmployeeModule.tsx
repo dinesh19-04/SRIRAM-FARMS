@@ -31,6 +31,7 @@ interface EmployeeModuleProps {
   onAddEmployee: (emp: Employee) => Promise<void>;
   onLogWork: (log: EmployeeWorkLog) => Promise<void>;
   onDeleteEmployee: (employeeId: string) => Promise<void>;
+  onDeleteWorkLog?: (logId: string) => Promise<void>;
 }
 
 export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
@@ -41,6 +42,7 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
   onAddEmployee,
   onLogWork,
   onDeleteEmployee,
+  onDeleteWorkLog,
 }) => {
   const t = useTranslation(language);
   const today = new Date().toISOString().slice(0, 10);
@@ -50,6 +52,10 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
   // Delete Employee State
   const [employeePendingDelete, setEmployeePendingDelete] = useState<Employee | null>(null);
   const [isDeletingEmployee, setIsDeletingEmployee] = useState(false);
+
+  // Delete Work Log State
+  const [logPendingDelete, setLogPendingDelete] = useState<EmployeeWorkLog | null>(null);
+  const [isDeletingLog, setIsDeletingLog] = useState(false);
 
   const handleConfirmDeleteEmployee = async () => {
     if (!employeePendingDelete) return;
@@ -61,6 +67,19 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
       console.error('Delete employee error:', err);
     } finally {
       setIsDeletingEmployee(false);
+    }
+  };
+
+  const handleConfirmDeleteLog = async () => {
+    if (!logPendingDelete || !onDeleteWorkLog) return;
+    setIsDeletingLog(true);
+    try {
+      await onDeleteWorkLog(logPendingDelete.id);
+      setLogPendingDelete(null);
+    } catch (err) {
+      console.error('Delete work log error:', err);
+    } finally {
+      setIsDeletingLog(false);
     }
   };
 
@@ -77,8 +96,8 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
   const [logCustomerId, setLogCustomerId] = useState(customers[0]?.id || '');
   const [logWorkType, setLogWorkType] = useState<'Seeding' | 'Planting'>('Seeding');
   const [logDate, setLogDate] = useState(today);
-  const [logEarned, setLogEarned] = useState<number>(800);
-  const [logPaid, setLogPaid] = useState<number>(800);
+  const [logEarned, setLogEarned] = useState<number | ''>('');
+  const [logPaid, setLogPaid] = useState<number | ''>('');
   const [logNotes, setLogNotes] = useState('');
 
   // Metrics
@@ -115,6 +134,8 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
     e.preventDefault();
     const worker = employees.find(e => e.id === logWorkerId);
     const cust = customers.find(c => c.id === logCustomerId);
+    const earnedNum = logEarned === '' ? 0 : Math.max(0, Number(logEarned) || 0);
+    const paidNum = logPaid === '' ? 0 : Math.max(0, Number(logPaid) || 0);
 
     const log: EmployeeWorkLog = {
       id: `LOG-${Date.now()}`,
@@ -126,13 +147,16 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
       customerId: logCustomerId,
       customerName: cust?.name || 'Farm Work',
       workType: logWorkType,
-      amountEarned: logEarned,
-      amountPaid: logPaid,
-      pendingWage: Math.max(0, logEarned - logPaid),
+      amountEarned: earnedNum,
+      amountPaid: paidNum,
+      pendingWage: Math.max(0, earnedNum - paidNum),
       notes: logNotes.trim(),
     };
 
     await onLogWork(log);
+    setLogEarned('');
+    setLogPaid('');
+    setLogNotes('');
     setShowLogModal(false);
   };
 
@@ -234,32 +258,71 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
             workLogs.map(log => (
               <div
                 key={log.id}
-                className="p-3 bg-white rounded-xl border border-stone-200 shadow-2xs flex flex-col sm:flex-row justify-between sm:items-center gap-2"
+                className="p-3.5 bg-white rounded-xl border border-stone-200 shadow-2xs flex flex-col sm:flex-row justify-between sm:items-center gap-3 hover:border-emerald-200 transition"
               >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-stone-900">{log.employeeName}</span>
-                    <span className="text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.5 rounded font-medium">
-                      {log.workType}
-                    </span>
-                    <span className="text-[11px] text-stone-500">
-                      for <strong>{log.customerName}</strong>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-xs sm:text-sm text-stone-900">{log.employeeName}</span>
+                    {log.employeeId && (
+                      <span className="text-[10px] font-mono text-stone-500 bg-stone-100 px-1.5 py-0.5 rounded">
+                        {log.employeeId}
+                      </span>
+                    )}
+                    <span className="text-[10px] bg-emerald-50 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-100">
+                      {log.workType === 'Seeding' ? 'Seeding / Nursery' : 'Machine Planting'}
                     </span>
                   </div>
-                  <div className="text-[11px] text-stone-500 mt-0.5">
-                    Date: <span className="font-mono">{formatDateDisplay(log.workDate)}</span> {log.notes && `· ${log.notes}`}
+
+                  <div className="text-xs text-stone-600 flex items-center gap-2 flex-wrap">
+                    <span>
+                      Farm / Customer: <strong className="text-stone-900">{log.customerName}</strong>
+                    </span>
+                    <span>·</span>
+                    <span>
+                      Work Date: <span className="font-mono font-medium text-stone-800">{formatDateDisplay(log.workDate)}</span>
+                    </span>
                   </div>
+
+                  {log.notes && (
+                    <div className="text-[11px] text-stone-500 italic">
+                      Note: {log.notes}
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-3 text-xs pt-1 sm:pt-0 border-t sm:border-t-0 border-stone-100">
-                  <div>
-                    <span className="text-stone-500 text-[10px] block">Earned: {formatCurrency(log.amountEarned)}</span>
-                    <span className="font-bold text-emerald-800">Paid: {formatCurrency(log.amountPaid)}</span>
+                <div className="flex items-center justify-between sm:justify-end gap-3 text-xs pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100">
+                  <div className="text-left sm:text-right">
+                    <div className="text-[10px] text-stone-500">
+                      Earned: <strong className="text-stone-900 font-mono">{formatCurrency(log.amountEarned)}</strong>
+                    </div>
+                    <div className="text-[11px] font-bold text-emerald-800 font-mono">
+                      Paid: {formatCurrency(log.amountPaid)}
+                    </div>
                   </div>
-                  {log.pendingWage > 0 && (
-                    <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                      Bal: {formatCurrency(log.pendingWage)}
-                    </span>
+
+                  <div className="text-right">
+                    <div className="text-[9px] uppercase font-bold text-stone-400">Balance</div>
+                    {log.pendingWage > 0 ? (
+                      <span className="inline-block text-[11px] font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-mono">
+                        {formatCurrency(log.pendingWage)}
+                      </span>
+                    ) : (
+                      <span className="inline-block text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        Settled
+                      </span>
+                    )}
+                  </div>
+
+                  {onDeleteWorkLog && (
+                    <button
+                      type="button"
+                      onClick={() => setLogPendingDelete(log)}
+                      className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200/70 flex items-center justify-center transition active:scale-95 shrink-0"
+                      title={`Delete wage record for ${log.employeeName}`}
+                      aria-label={`Delete wage record for ${log.employeeName}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -336,6 +399,58 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* Confirmation Modal: Delete Work Log */}
+      {logPendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 border border-red-200">
+            <div className="flex items-center gap-3 text-red-600 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-stone-900">Confirm Wage Log Deletion</h4>
+                <p className="text-xs text-red-600 font-bold">Are you sure you want to permanently delete this wage record?</p>
+              </div>
+            </div>
+
+            <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 text-xs space-y-1 my-3">
+              <div><strong>Worker:</strong> {logPendingDelete.employeeName}</div>
+              <div><strong>Customer / Farm:</strong> {logPendingDelete.customerName}</div>
+              <div><strong>Work Date:</strong> {formatDateDisplay(logPendingDelete.workDate)}</div>
+              <div><strong>Wage Earned:</strong> {formatCurrency(logPendingDelete.amountEarned)}</div>
+              <div><strong>Amount Paid:</strong> {formatCurrency(logPendingDelete.amountPaid)}</div>
+              {logPendingDelete.pendingWage > 0 && (
+                <div><strong>Outstanding Balance:</strong> {formatCurrency(logPendingDelete.pendingWage)}</div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-stone-500 mb-4">
+              This wage log will be permanently deleted from the shared Cloud Firestore database.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={isDeletingLog}
+                onClick={() => setLogPendingDelete(null)}
+                className="px-3.5 py-1.5 rounded-lg border border-stone-300 text-xs font-bold text-stone-700 hover:bg-stone-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingLog}
+                onClick={handleConfirmDeleteLog}
+                className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeletingLog ? 'Deleting...' : 'Yes, Permanently Delete'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -520,14 +635,17 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-semibold text-stone-700 block mb-1">Wage Earned (₹)</label>
+                  <label className="text-xs font-semibold text-stone-700 block mb-1">Wage Earned (₹) *</label>
                   <input
                     type="number"
                     min="0"
-                    step="50"
+                    step="1"
+                    inputMode="numeric"
                     value={logEarned}
-                    onChange={e => setLogEarned(parseInt(e.target.value, 10) || 0)}
-                    className="w-full p-2 text-xs font-bold rounded-lg border border-stone-300"
+                    onChange={e => setLogEarned(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    placeholder="e.g. ₹375, ₹425, ₹675"
+                    className="w-full p-2 text-xs font-bold rounded-lg border border-stone-300 bg-white text-stone-900 focus:outline-none focus:border-emerald-600"
+                    required
                   />
                 </div>
 
@@ -536,12 +654,22 @@ export const EmployeeModule: React.FC<EmployeeModuleProps> = ({
                   <input
                     type="number"
                     min="0"
-                    step="50"
+                    step="1"
+                    inputMode="numeric"
                     value={logPaid}
-                    onChange={e => setLogPaid(parseInt(e.target.value, 10) || 0)}
-                    className="w-full p-2 text-xs font-bold rounded-lg border border-stone-300"
+                    onChange={e => setLogPaid(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    placeholder="e.g. ₹375, ₹425"
+                    className="w-full p-2 text-xs font-bold rounded-lg border border-stone-300 bg-white text-stone-900 focus:outline-none focus:border-emerald-600"
                   />
                 </div>
+              </div>
+
+              {/* Calculated Outstanding Balance preview */}
+              <div className="flex items-center justify-between text-xs bg-stone-50 p-2 rounded-lg border border-stone-200">
+                <span className="text-stone-600 font-medium">Outstanding Balance:</span>
+                <span className="font-bold text-amber-800 font-mono">
+                  {formatCurrency(Math.max(0, (Number(logEarned) || 0) - (Number(logPaid) || 0)))}
+                </span>
               </div>
 
               <div>

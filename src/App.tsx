@@ -10,6 +10,7 @@ import {
   DashboardMetrics,
   PaymentRecord,
   PlantingSchedule,
+  BookingStatus,
 } from './types';
 import {
   db,
@@ -461,16 +462,25 @@ export default function App() {
       // 2. Local cache in Dexie
       await db.customers.put(cust);
 
-      // Cascade update to any linked schedules in local Dexie database
+      // Cascade update to any linked schedules in local Dexie database and Firestore
       const linked = schedules.filter(s => s.customerId === cust.id);
       for (const s of linked) {
+        let scheduleStatus = s.status;
+        if (cust.bookingStatus === 'Planting Completed') {
+          scheduleStatus = 'Completed';
+        } else if (cust.bookingStatus === 'Planting Pending') {
+          if (scheduleStatus === 'Completed') scheduleStatus = 'In Progress';
+        }
+
         const updatedS: PlantingSchedule = {
           ...s,
           customerName: cust.name,
           village: cust.village,
           mobile: cust.mobile,
+          status: scheduleStatus,
           updatedAt: new Date().toISOString(),
         };
+        await saveScheduleToFirestore(updatedS);
         await db.schedules.put(updatedS);
       }
 
@@ -557,6 +567,40 @@ export default function App() {
     try {
       await saveScheduleToFirestore(schedule);
       await db.schedules.put(schedule);
+
+      // Keep customer details and schedule status synchronized across website and database
+      if (schedule.customerId) {
+        const linkedCust = customers.find(c => c.id === schedule.customerId) || (await db.customers.get(schedule.customerId));
+        if (linkedCust) {
+          let updatedBookingStatus: BookingStatus = linkedCust.bookingStatus;
+          let actualPlantingDate = linkedCust.actualPlantingDate;
+
+          if (schedule.status === 'Completed') {
+            updatedBookingStatus = 'Planting Completed';
+            actualPlantingDate = actualPlantingDate || schedule.scheduledDate || new Date().toISOString().split('T')[0];
+          } else if (schedule.status === 'In Progress' || schedule.status === 'Pending') {
+            updatedBookingStatus = 'Planting Pending';
+          } else if (schedule.status === 'Scheduled') {
+            if (linkedCust.bookingStatus === 'Planting Completed') {
+              updatedBookingStatus = 'Booked';
+            }
+          }
+
+          if (updatedBookingStatus !== linkedCust.bookingStatus || actualPlantingDate !== linkedCust.actualPlantingDate) {
+            const updatedCust: Customer = {
+              ...linkedCust,
+              bookingStatus: updatedBookingStatus,
+              actualPlantingDate,
+              updatedAt: new Date().toISOString(),
+              updatedByRole: activeProfile.role,
+              updatedByName: activeProfile.name,
+            };
+            await saveCustomerToFirestore(updatedCust);
+            await db.customers.put(updatedCust);
+          }
+        }
+      }
+
       setSchedules(prev => {
         const idx = prev.findIndex(s => s.id === schedule.id);
         if (idx >= 0) {
@@ -631,6 +675,20 @@ export default function App() {
       await db.employeeWorkLogs.put(log);
       await loadDatabaseRecords();
       showToast(`Work logged for ${log.employeeName}!`);
+    }
+  };
+
+  const handleDeleteWorkLog = async (logId: string) => {
+    try {
+      await deleteWorkLogFromFirestore(logId);
+      await db.employeeWorkLogs.delete(logId);
+      await loadDatabaseRecords();
+      showToast('Wage and work log permanently deleted from database.', 'success');
+    } catch (err) {
+      console.error('Delete work log error:', err);
+      await db.employeeWorkLogs.delete(logId);
+      await loadDatabaseRecords();
+      showToast('Wage log removed from local device', 'error');
     }
   };
 
@@ -904,6 +962,7 @@ export default function App() {
             customers={customers}
             schedules={schedules}
             language={settings.language}
+            onNavigateHome={() => setCurrentTab('home')}
             onRefreshData={() => loadDatabaseRecords(true)}
             onAddCustomer={() => {
               setEditingCustomer(null);
@@ -979,6 +1038,7 @@ export default function App() {
                   onAddEmployee={handleAddEmployee}
                   onLogWork={handleLogWork}
                   onDeleteEmployee={handleDeleteEmployee}
+                  onDeleteWorkLog={handleDeleteWorkLog}
                 />
               </div>
             )}

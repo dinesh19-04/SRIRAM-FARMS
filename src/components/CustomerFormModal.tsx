@@ -107,9 +107,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const [bookingStatus, setBookingStatus] = useState<BookingStatus>('Booked');
 
   // Pricing & Advance
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountAmount, setDiscountAmount] = useState<number | ''>('');
   const [discountReason, setDiscountReason] = useState('');
-  const [advancePayment, setAdvancePayment] = useState<number>(0);
+  const [advancePayment, setAdvancePayment] = useState<number | ''>('');
   const [advanceMethod, setAdvanceMethod] = useState<'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque'>('Cash');
   const [advanceNotes, setAdvanceNotes] = useState('');
 
@@ -154,9 +154,17 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setIsPlantingDateOverridden(initialCustomer.isPlantingDateOverridden || false);
       setActualPlantingDate(initialCustomer.actualPlantingDate || '');
       setBookingStatus(initialCustomer.bookingStatus);
-      setDiscountAmount(initialCustomer.discountAmount || 0);
+      setDiscountAmount(
+        initialCustomer.discountAmount !== undefined && initialCustomer.discountAmount !== null && initialCustomer.discountAmount > 0
+          ? initialCustomer.discountAmount
+          : ''
+      );
       setDiscountReason(initialCustomer.discountReason || '');
-      setAdvancePayment(initialCustomer.advancePayment || 0);
+      setAdvancePayment(
+        initialCustomer.advancePayment !== undefined && initialCustomer.advancePayment !== null && initialCustomer.advancePayment > 0
+          ? initialCustomer.advancePayment
+          : ''
+      );
       setLandImage(initialCustomer.landImage);
       setImageDate(initialCustomer.landImage?.capturedDate || today);
       setImageNotes(initialCustomer.landImage?.notes || '');
@@ -182,9 +190,9 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
       setIsPlantingDateOverridden(false);
       setActualPlantingDate('');
       setBookingStatus('Booked');
-      setDiscountAmount(0);
+      setDiscountAmount('');
       setDiscountReason('');
-      setAdvancePayment(0);
+      setAdvancePayment('');
       setAdvanceMethod('Cash');
       setAdvanceNotes('Advance collected at registration');
       setLandImage(undefined);
@@ -229,24 +237,27 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   const totalCents = calculateTotalCents(acres, cents);
   const totalAcres = calculateTotalAcres(acres, cents);
   const baseCharge = calculateBaseCharge(acres, cents, machineryType, rateType, customRate);
-  const totalCharge = calculateTotalCharge(baseCharge, discountAmount);
+  const discountVal = discountAmount === '' ? 0 : Math.max(0, Number(discountAmount) || 0);
+  const advanceVal = advancePayment === '' ? 0 : Math.max(0, Number(advancePayment) || 0);
+  const totalCharge = calculateTotalCharge(baseCharge, discountVal);
 
   // If editing, existing payments sum or advancePayment
   const priorPaymentsTotal = initialCustomer
     ? initialCustomer.paymentHistory.reduce((sum, p) => sum + p.amount, 0)
-    : advancePayment;
+    : advanceVal;
   const remainingBalance = calculateRemainingBalance(totalCharge, priorPaymentsTotal);
   const paymentStatus = determinePaymentStatus(totalCharge, priorPaymentsTotal);
 
   // Seeding Employee Helpers
   const handleAddEmployeeAssignment = () => {
+    const firstEmp = employeesList[0];
     const newAss: CustomerEmployeeAssignment = {
-      id: `ASN-${Date.now()}`,
-      employeeName: employeesList[0]?.name || 'Nursery Worker',
-      employeeId: employeesList[0]?.id || '',
-      amountPaid: 800,
+      id: `ASN-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      employeeName: firstEmp?.name || '',
+      employeeId: firstEmp?.id || '',
+      amountPaid: 0,
       date: seedingDate || today,
-      notes: 'Tray seeding',
+      notes: 'Nursery tray seeding',
     };
     setEmployees([...employees, newAss]);
   };
@@ -351,14 +362,17 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
     try {
       // Build customer object
       const now = new Date().toISOString();
+      const numAdvance = advancePayment === '' ? 0 : Math.max(0, Number(advancePayment) || 0);
+      const numDiscount = discountAmount === '' ? 0 : Math.max(0, Number(discountAmount) || 0);
+
       const updatedPaymentHistory = initialCustomer
         ? [...initialCustomer.paymentHistory]
-        : advancePayment > 0
+        : numAdvance > 0
         ? [
             {
               id: `PAY-${Date.now()}`,
               date: seedingDate || today,
-              amount: advancePayment,
+              amount: numAdvance,
               method: advanceMethod,
               notes: advanceNotes || 'Advance payment at booking',
               recordedBy: 'Owner / Manager',
@@ -390,15 +404,18 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
         actualPlantingDate: actualPlantingDate || null,
         bookingStatus,
         baseCharge,
-        discountAmount,
+        discountAmount: numDiscount,
         discountReason: discountReason.trim(),
         totalCharge,
-        advancePayment: initialCustomer ? initialCustomer.advancePayment : advancePayment,
+        advancePayment: initialCustomer ? initialCustomer.advancePayment : numAdvance,
         totalCustomerPaid: totalPaidAmount,
         remainingBalance: calculateRemainingBalance(totalCharge, totalPaidAmount),
         paymentStatus: determinePaymentStatus(totalCharge, totalPaidAmount),
         paymentHistory: updatedPaymentHistory,
-        employees,
+        employees: employees.map(emp => ({
+          ...emp,
+          amountPaid: Number(emp.amountPaid) || 0,
+        })),
         landImage: landImage
           ? {
               ...landImage,
@@ -772,9 +789,14 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-stone-700 mb-1">
-                    {t.seedingDate} <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-stone-700">
+                      {t.seedingDate} <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
+                      Auto-Recorded: Today
+                    </span>
+                  </div>
                   <input
                     type="date"
                     value={seedingDate}
@@ -895,11 +917,12 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  step="50"
+                  step="1"
+                  inputMode="numeric"
                   value={discountAmount}
-                  onChange={e => setDiscountAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  placeholder="0"
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 bg-stone-50 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                  onChange={e => setDiscountAmount(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  placeholder="Enter discount (e.g. ₹375, ₹425)"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 bg-stone-50 focus:outline-none focus:border-emerald-600 focus:bg-white text-stone-900"
                 />
               </div>
 
@@ -912,7 +935,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                   value={discountReason}
                   onChange={e => setDiscountReason(e.target.value)}
                   placeholder="e.g. Village elder / neighbor courtesy"
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 bg-stone-50 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                  className="w-full px-3 py-2 text-sm rounded-xl border border-stone-300 bg-stone-50 focus:outline-none focus:border-emerald-600 focus:bg-white text-stone-900"
                 />
               </div>
             </div>
@@ -927,9 +950,11 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                   <input
                     type="number"
                     min="0"
-                    step="500"
+                    step="1"
+                    inputMode="numeric"
                     value={advancePayment}
-                    onChange={e => setAdvancePayment(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onChange={e => setAdvancePayment(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    placeholder="Enter advance (e.g. ₹500, ₹1000)"
                     className="w-full px-3 py-2 text-sm font-bold rounded-xl border border-emerald-300 bg-white text-emerald-950 focus:outline-none focus:border-emerald-600"
                   />
                 </div>
@@ -983,10 +1008,10 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 <span>{t.baseCharge} ({rateType}):</span>
                 <span className="font-mono">{formatCurrency(baseCharge)}</span>
               </div>
-              {discountAmount > 0 && (
+              {(Number(discountAmount) || 0) > 0 && (
                 <div className="flex justify-between text-xs text-amber-300">
                   <span>{t.discountAmount}:</span>
-                  <span className="font-mono">- {formatCurrency(discountAmount)}</span>
+                  <span className="font-mono">- {formatCurrency(Number(discountAmount) || 0)}</span>
                 </div>
               )}
               <div className="flex justify-between text-sm font-bold text-white pt-1 border-t border-stone-800">
@@ -1134,30 +1159,63 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                     className="p-3 bg-stone-50 rounded-xl border border-stone-200 grid grid-cols-1 sm:grid-cols-4 gap-2 items-center"
                   >
                     <div>
-                      <label className="block text-[10px] text-stone-500 font-medium">Worker Name</label>
-                      <input
-                        type="text"
-                        value={emp.employeeName}
-                        onChange={e => handleUpdateEmployeeAssignment(index, 'employeeName', e.target.value)}
-                        list="workers-list"
-                        className="w-full px-2 py-1 text-xs rounded border border-stone-300 bg-white font-medium"
-                      />
-                      <datalist id="workers-list">
+                      <label className="block text-[10px] text-stone-500 font-medium">Select Worker</label>
+                      <select
+                        value={emp.employeeId || (employeesList.find(e => e.name === emp.employeeName)?.id) || ''}
+                        onChange={e => {
+                          const selectedId = e.target.value;
+                          if (selectedId === '__custom__') {
+                            const updated = [...employees];
+                            updated[index] = { ...updated[index], employeeId: '', employeeName: '' };
+                            setEmployees(updated);
+                          } else {
+                            const match = employeesList.find(w => w.id === selectedId);
+                            if (match) {
+                              const updated = [...employees];
+                              updated[index] = {
+                                ...updated[index],
+                                employeeId: match.id,
+                                employeeName: match.name,
+                              };
+                              setEmployees(updated);
+                            }
+                          }
+                        }}
+                        className="w-full px-2 py-1.5 text-xs rounded border border-stone-300 bg-white font-medium focus:ring-1 focus:ring-emerald-500"
+                      >
+                        <option value="">-- Choose Employee --</option>
                         {employeesList.map(w => (
-                          <option key={w.id} value={w.name} />
+                          <option key={w.id} value={w.id}>
+                            {w.name} {w.village ? `(${w.village})` : ''} - ID: {w.id}
+                          </option>
                         ))}
-                      </datalist>
+                        <option value="__custom__">-- Other / Manual Entry --</option>
+                      </select>
+                      {(!emp.employeeId || !employeesList.some(w => w.id === emp.employeeId)) && (
+                        <input
+                          type="text"
+                          placeholder="Enter worker name"
+                          value={emp.employeeName}
+                          onChange={e => handleUpdateEmployeeAssignment(index, 'employeeName', e.target.value)}
+                          className="mt-1 w-full px-2 py-1 text-xs rounded border border-stone-300 bg-white"
+                        />
+                      )}
                     </div>
 
                     <div>
-                      <label className="block text-[10px] text-stone-500 font-medium">Wage Paid (₹)</label>
+                      <label className="block text-[10px] text-stone-500 font-medium">Wage Amount (₹)</label>
                       <input
                         type="number"
                         min="0"
-                        step="50"
-                        value={emp.amountPaid}
-                        onChange={e => handleUpdateEmployeeAssignment(index, 'amountPaid', parseInt(e.target.value, 10) || 0)}
-                        className="w-full px-2 py-1 text-xs font-bold rounded border border-stone-300 bg-white"
+                        step="1"
+                        inputMode="numeric"
+                        placeholder="e.g. 375"
+                        value={emp.amountPaid === 0 || emp.amountPaid === undefined ? '' : emp.amountPaid}
+                        onChange={e => {
+                          const val = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0);
+                          handleUpdateEmployeeAssignment(index, 'amountPaid', val);
+                        }}
+                        className="w-full px-2 py-1.5 text-xs font-bold rounded border border-stone-300 bg-white focus:ring-1 focus:ring-emerald-500 font-mono"
                       />
                     </div>
 
@@ -1168,7 +1226,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                         value={emp.notes || ''}
                         onChange={e => handleUpdateEmployeeAssignment(index, 'notes', e.target.value)}
                         placeholder="Nursery tray work"
-                        className="w-full px-2 py-1 text-xs rounded border border-stone-300 bg-white"
+                        className="w-full px-2 py-1.5 text-xs rounded border border-stone-300 bg-white focus:ring-1 focus:ring-emerald-500"
                       />
                     </div>
 
@@ -1176,8 +1234,8 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveEmployeeAssignment(index)}
-                        className="text-red-600 hover:text-red-800 p-1 rounded"
-                        title="Remove"
+                        className="text-red-600 hover:text-red-800 p-1.5 rounded-lg hover:bg-red-50 transition"
+                        title="Remove Assignment"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

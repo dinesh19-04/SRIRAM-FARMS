@@ -479,11 +479,12 @@ export const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                     <input
                       type="number"
                       min="1"
-                      step="100"
+                      step="1"
+                      inputMode="numeric"
                       value={paymentAmount || ''}
                       onChange={e => setPaymentAmount(parseInt(e.target.value, 10) || 0)}
                       placeholder="e.g. 3000"
-                      className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-emerald-300 bg-white"
+                      className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-emerald-300 bg-white font-mono"
                       required
                     />
                   </div>

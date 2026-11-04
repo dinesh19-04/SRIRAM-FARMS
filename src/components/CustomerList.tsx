@@ -26,6 +26,7 @@ import {
   Download,
   Sprout,
   RefreshCw,
+  Home,
 } from 'lucide-react';
 
 interface CustomerListProps {
@@ -33,6 +34,7 @@ interface CustomerListProps {
   schedules?: PlantingSchedule[];
   language: Language;
   onAddCustomer: () => void;
+  onNavigateHome?: () => void;
   onRefreshData?: () => Promise<void>;
   onSelectCustomer: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
@@ -48,6 +50,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({
   schedules = [],
   language,
   onAddCustomer,
+  onNavigateHome,
   onRefreshData,
   onSelectCustomer,
   onEditCustomer,
@@ -196,6 +199,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {onNavigateHome && (
+            <button
+              onClick={onNavigateHome}
+              title="Return to Home Dashboard"
+              className="flex items-center justify-center gap-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 font-bold px-3 py-2.5 rounded-xl border border-stone-300 transition active:scale-95 text-xs min-h-[44px]"
+            >
+              <Home className="w-4 h-4 text-emerald-800" />
+              <span>Back to Home</span>
+            </button>
+          )}
+
           {onRefreshData && (
             <button
               onClick={handleManualRefresh}
